@@ -46,15 +46,15 @@ func main() {
 
 	devices := []Box{}
 
-	cmd := exec.Command("chmod 666 /dev/ttyUSB0")
+	/*cmd := exec.Command("chmod 666 /dev/ttyUSB0")
 	errC := cmd.Run()
 	if errC != nil {
 		log.Println(errC)
-	}
+	}*/
 
 	devs, err := ctx.OpenDevices(func(desc *gousb.DeviceDesc) bool {
 		log.Println(desc.SubClass.String(), desc.Protocol.String(), desc.Class.String())
-		if desc.SubClass.String() == "communications" /*|| (desc.SubClass.String() == "per-interface" && desc.Protocol.String() == "0" && desc.Class.String() == "per-interface")*/ {
+		if desc.SubClass.String() == "communications" || (desc.SubClass.String() == "per-interface" && desc.Protocol.String() == "0" && desc.Class.String() == "per-interface") {
 			devices = append(devices, Box{desc.Vendor.String(), desc.Product.String()})
 		}
 		return false
