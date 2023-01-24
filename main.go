@@ -38,7 +38,7 @@ type BodySwitch struct {
 	}
 }
 
-const source = "ttyACM"
+const source = "ttyUSB"
 
 func main() {
 	// Initialize a new Context.
