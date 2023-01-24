@@ -46,9 +46,15 @@ func main() {
 
 	devices := []Box{}
 
+	cmd := exec.Command("chmod 666 /dev/ttyUSB0")
+	errC := cmd.Run()
+	if errC != nil {
+		log.Println(errC)
+	}
+
 	devs, err := ctx.OpenDevices(func(desc *gousb.DeviceDesc) bool {
-		//log.Println(strconv.Itoa(desc.Address))
-		if desc.SubClass.String() == "communications" {
+		log.Println(desc.SubClass.String(), desc.Protocol.String(), desc.Class.String())
+		if desc.SubClass.String() == "communications" /*|| (desc.SubClass.String() == "per-interface" && desc.Protocol.String() == "0" && desc.Class.String() == "per-interface")*/ {
 			devices = append(devices, Box{desc.Vendor.String(), desc.Product.String()})
 		}
 		return false
@@ -121,7 +127,7 @@ func main() {
 								}
 
 								for _, dox := range doxa {
-									result := fmt.Sprintf(`KERNEL=="%s[0-9]*", SUBSYSTEM=="tty", ATTRS{idVendor}=="%s", ATTRS{idProduct}=="%s", SYMLINK="ttyBOX%s"%s`, source, dox.Vendor, dox.Product, dox.Product, "\n")
+									result := fmt.Sprintf(`KERNEL=="%s[0-9]*", SUBSYSTEM=="tty", ATTRS{idVendor}=="%s", ATTRS{idProduct}=="%s", SYMLINK="ttyBOX%s", MODE="0666", GROUP="root"%s`, source, dox.Vendor, dox.Product, dox.Product, "\n")
 									_, err2 := file.WriteString(result)
 
 									if err2 != nil {
@@ -146,7 +152,7 @@ func main() {
 								cmd := exec.Command("reboot")
 								errC := cmd.Run()
 								if errC != nil {
-									log.Println(err)
+									log.Println(errC)
 								}
 							}
 
