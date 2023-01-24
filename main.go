@@ -30,6 +30,16 @@ type BodyList struct {
 	Data []Box `json:Data`
 }
 
+type BodySwitch struct {
+	Data struct {
+		Product string
+		Vendor  string
+		Command string
+	}
+}
+
+const source = "ttyACM"
+
 func main() {
 	// Initialize a new Context.
 	ctx := gousb.NewContext()
@@ -78,7 +88,7 @@ func main() {
 	}
 	defer ws.Close()
 
-	var serialChannels map[string]chan string
+	var serialChannels = make(map[string](chan string))
 
 	done := make(chan struct{})
 	go func() {
@@ -90,83 +100,98 @@ func main() {
 				return
 			}
 			log.Printf("recv: %s", message)
-			var header Header
-			err2 := json.Unmarshal(message, &header)
+			go func() {
+				var header Header
+				err2 := json.Unmarshal(message, &header)
 
-			if err2 == nil {
-				switch Type := header.Type; Type {
-				case "list":
-					var list BodyList
-					err3 := json.Unmarshal(message, &list)
-					if err3 == nil {
+				if err2 == nil {
+					switch Type := header.Type; Type {
+					case "list":
+						var list BodyList
+						err3 := json.Unmarshal(message, &list)
+						if err3 == nil {
 
-						doxa := difference(devices, list.Data)
-						log.Println(doxa)
-						if len(doxa) > 0 {
-							file, err := os.OpenFile("/etc/udev/rules.d/49-boxconfig.rules", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-							if err != nil {
-								log.Println("Could not open example.txt")
-								return
-							}
+							doxa := difference(devices, list.Data)
+							log.Println(doxa)
+							if len(doxa) > 0 {
+								file, err := os.OpenFile("/etc/udev/rules.d/49-boxconfig.rules", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+								if err != nil {
+									log.Println("Could not open example.txt")
+									return
+								}
 
-							for _, dox := range doxa {
-								result := fmt.Sprintf(`KERNEL=="ttyUSB[0-9]*", SUBSYSTEM=="tty", ATTRS{idVendor}=="%s", ATTRS{idProduct}=="%s", SYMLINK="ttyBOX%s"`, dox.Vendor, dox.Product, dox.Product)
-								_, err2 := file.WriteString(result)
+								for _, dox := range doxa {
+									result := fmt.Sprintf(`KERNEL=="%s[0-9]*", SUBSYSTEM=="tty", ATTRS{idVendor}=="%s", ATTRS{idProduct}=="%s", SYMLINK="ttyBOX%s"%s`, source, dox.Vendor, dox.Product, dox.Product, "\n")
+									_, err2 := file.WriteString(result)
 
-								if err2 != nil {
-									log.Println("Could not write")
+									if err2 != nil {
+										log.Println("Could not write")
 
-								} else {
-									log.Println("Operation successful!")
+									} else {
+										log.Println("Operation successful!")
+									}
+								}
+								b, errM := json.Marshal(struct {
+									Type string `json:"type"`
+									Data []Box  `json:"data"`
+								}{"list", doxa})
+
+								if errM != nil {
+									log.Println("Could not json stringify")
+									return
+								}
+								log.Println(b)
+								messageOut <- string(b)
+
+								cmd := exec.Command("reboot")
+								errC := cmd.Run()
+								if errC != nil {
+									log.Println(err)
 								}
 							}
-							b, errM := json.Marshal(struct {
-								Type string `json:"type"`
-								Data []Box  `json:"data"`
-							}{"list", doxa})
 
-							if errM != nil {
-								log.Println("Could not json stringify")
-								return
-							}
-							log.Println(b)
-							messageOut <- string(b)
+							for _, box := range devices {
+								go func(box Box) {
+									log.Println("/dev/ttyBOX" + box.Product)
+									c := &serial.Config{Name: "/dev/ttyBOX" + box.Product, Baud: 115200}
+									s, err := serial.OpenPort(c)
 
-							cmd := exec.Command("reboot")
-							errC := cmd.Run()
-							if errC != nil {
-								log.Println(err)
+									if err != nil {
+										log.Println(err)
+										close(serialChannels[box.Vendor+box.Product])
+									} else {
+										serialChannels[box.Vendor+box.Product] = make(chan string, 10)
+										defer close(serialChannels[box.Vendor+box.Product])
+
+										for {
+											mess := <-serialChannels[box.Vendor+box.Product]
+											log.Printf("message receive: %s\n", mess)
+
+											time.Sleep(time.Millisecond * 750)
+											_, errr := s.Write([]byte(mess + "\r\n"))
+											if errr != nil {
+												log.Println(errr)
+											}
+
+										}
+
+									}
+									defer s.Close()
+
+								}(box)
 							}
 						}
-
-						for _, box := range devices {
-							go func(box Box) {
-								log.Println("/dev/ttyBOX" + box.Product)
-								c := &serial.Config{Name: "/dev/ttyBOX" + box.Product, Baud: 115200}
-								s, err := serial.OpenPort(c)
-
-								if err != nil {
-									log.Println(err)
-								} else {
-									serialChannels[box.Vendor+box.Product] = make(chan string)
-									for {
-										mess := <-serialChannels[box.Vendor+box.Product]
-										_, errr := s.Write([]byte(mess))
-										if errr != nil {
-											log.Println(errr)
-										}
-									}
-
-								}
-								defer s.Close()
-
-							}(box)
+					case "switch":
+						var swit BodySwitch
+						err3 := json.Unmarshal(message, &swit)
+						if err3 != nil {
+							log.Println(err3)
+						} else {
+							serialChannels[swit.Data.Vendor+swit.Data.Product] <- swit.Data.Command
 						}
 					}
-				case "switch":
-					serialChannels["04e21410"] <- "AT+SWIT91-0001"
 				}
-			}
+			}()
 		}
 
 	}()
