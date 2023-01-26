@@ -53,7 +53,8 @@ func main() {
 	}*/
 
 	devs, err := ctx.OpenDevices(func(desc *gousb.DeviceDesc) bool {
-		log.Println(desc.SubClass.String(), desc.Protocol.String(), desc.Class.String())
+		log.Println(desc.SubClass.String(), desc.Protocol.String(), desc.Class.String(), desc.Address, desc.Bus, desc.Configs, desc.Device.String(), desc.MaxControlPacketSize, desc.Path, desc.Port, desc.Product.String(), desc.Spec.String(), desc.Speed.String(), desc.Vendor.String())
+
 		if desc.SubClass.String() == "communications" || (desc.SubClass.String() == "per-interface" && desc.Protocol.String() == "0" && desc.Class.String() == "per-interface") {
 			devices = append(devices, Box{desc.Vendor.String(), desc.Product.String()})
 		}
