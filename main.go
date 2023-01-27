@@ -32,8 +32,7 @@ type BodyList struct {
 
 type BodySwitch struct {
 	Data struct {
-		Product string
-		Vendor  string
+		Path    string
 		Command string
 	}
 }
@@ -195,7 +194,7 @@ func main() {
 						if err3 != nil {
 							log.Println(err3)
 						} else {
-							serialChannels[swit.Data.Vendor+swit.Data.Product] <- swit.Data.Command
+							serialChannels[swit.Data.Path] <- swit.Data.Command
 						}
 					}
 				}
