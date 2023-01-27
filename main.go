@@ -56,7 +56,7 @@ func main() {
 		log.Println(desc.SubClass.String(), desc.Protocol.String(), desc.Class.String(), desc.Address, desc.Bus, desc.Configs, desc.Device.String(), desc.MaxControlPacketSize, desc.Path, desc.Port, desc.Product.String(), desc.Spec.String(), desc.Speed.String(), desc.Vendor.String())
 
 		if desc.Vendor.String() == "0403" && desc.Product.String() == "6001" {
-			devices = append(devices, Box{strconv.Itoa(desc.Bus) + strings.Trim(strings.Join(strings.Fields(fmt.Sprint(desc.Path)), "."), "[]")})
+			devices = append(devices, Box{strconv.Itoa(desc.Bus) + "-" + strings.Trim(strings.Join(strings.Fields(fmt.Sprint(desc.Path)), "."), "[]")})
 		}
 		return false
 	})
