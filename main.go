@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,8 +19,7 @@ import (
 )
 
 type Box struct {
-	Vendor  string `json:Vendor`
-	Product string `json:Product`
+	Path string `json:Path`
 }
 
 type Header struct {
@@ -55,8 +55,8 @@ func main() {
 	devs, err := ctx.OpenDevices(func(desc *gousb.DeviceDesc) bool {
 		log.Println(desc.SubClass.String(), desc.Protocol.String(), desc.Class.String(), desc.Address, desc.Bus, desc.Configs, desc.Device.String(), desc.MaxControlPacketSize, desc.Path, desc.Port, desc.Product.String(), desc.Spec.String(), desc.Speed.String(), desc.Vendor.String())
 
-		if desc.SubClass.String() == "communications" || (desc.SubClass.String() == "per-interface" && desc.Protocol.String() == "0" && desc.Class.String() == "per-interface") {
-			devices = append(devices, Box{desc.Vendor.String(), desc.Product.String()})
+		if desc.Vendor.String() == "0403" && desc.Product.String() == "6001" {
+			devices = append(devices, Box{strconv.Itoa(desc.Bus) + strings.Trim(strings.Join(strings.Fields(fmt.Sprint(desc.Path)), "."), "[]")})
 		}
 		return false
 	})
@@ -128,7 +128,8 @@ func main() {
 								}
 
 								for _, dox := range doxa {
-									result := fmt.Sprintf(`KERNEL=="%s[0-9]*", SUBSYSTEM=="tty", ATTRS{idVendor}=="%s", ATTRS{idProduct}=="%s", SYMLINK="ttyBOX%s", MODE="0666", GROUP="root"%s`, source, dox.Vendor, dox.Product, dox.Product, "\n")
+									//result := fmt.Sprintf(`KERNEL=="%s[0-9]*", SUBSYSTEM=="tty", ATTRS{idVendor}=="%s", ATTRS{idProduct}=="%s", SYMLINK="ttyBOX%s", MODE="0666", GROUP="root"%s`, source, dox.Vendor, dox.Product, dox.Product, "\n")
+									result := fmt.Sprintf(`KERNEL=="ttyUSB*", KERNELS=="%s", SYMLINK+="ttyBOX%s" MODE="0666", GROUP="root"%s`, dox.Path, dox.Path, "\n")
 									_, err2 := file.WriteString(result)
 
 									if err2 != nil {
@@ -159,19 +160,19 @@ func main() {
 
 							for _, box := range devices {
 								go func(box Box) {
-									log.Println("/dev/ttyBOX" + box.Product)
-									c := &serial.Config{Name: "/dev/ttyBOX" + box.Product, Baud: 115200}
+									log.Println("/dev/ttyBOX" + box.Path)
+									c := &serial.Config{Name: "/dev/ttyBOX" + box.Path, Baud: 115200}
 									s, err := serial.OpenPort(c)
 
 									if err != nil {
 										log.Println(err)
-										close(serialChannels[box.Vendor+box.Product])
+										close(serialChannels[box.Path])
 									} else {
-										serialChannels[box.Vendor+box.Product] = make(chan string, 10)
-										defer close(serialChannels[box.Vendor+box.Product])
+										serialChannels[box.Path] = make(chan string, 10)
+										defer close(serialChannels[box.Path])
 
 										for {
-											mess := <-serialChannels[box.Vendor+box.Product]
+											mess := <-serialChannels[box.Path]
 											log.Printf("message receive: %s\n", mess)
 
 											time.Sleep(time.Millisecond * 750)
@@ -246,8 +247,8 @@ func difference(slice1 []Box, slice2 []Box) []Box {
 	for _, s1Val := range slice1 {
 		var condition = true
 		for _, s2Val := range slice2 {
-			log.Println(s1Val.Vendor + s1Val.Product + "  --  " + s2Val.Vendor + s2Val.Product)
-			if s1Val.Vendor+s1Val.Product == s2Val.Vendor+s2Val.Product {
+			log.Println(s1Val.Path + "  --  " + s2Val.Path)
+			if s1Val.Path == s2Val.Path {
 				condition = false
 				break
 			}
