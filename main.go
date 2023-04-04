@@ -55,6 +55,9 @@ func main() {
 		if desc.Vendor.String() == "0403" && desc.Product.String() == "6001" {
 			devices = append(devices, Box{strconv.Itoa(desc.Bus) + "-" + strings.Trim(strings.Join(strings.Fields(fmt.Sprint(desc.Path)), "."), "[]")})
 		}
+		if desc.Vendor.String() == "04e2" && desc.Product.String() == "1410" {
+			devices = append(devices, Box{strconv.Itoa(desc.Bus) + "-" + strings.Trim(strings.Join(strings.Fields(fmt.Sprint(desc.Path)), "."), "[]")})
+		}
 		return false
 	})
 
