@@ -37,8 +37,6 @@ type BodySwitch struct {
 	}
 }
 
-const source = "ttyUSB"
-
 func main() {
 	// Initialize a new Context.
 	ctx := gousb.NewContext()
@@ -129,9 +127,19 @@ func main() {
 								for _, dox := range doxa {
 									//result := fmt.Sprintf(`KERNEL=="%s[0-9]*", SUBSYSTEM=="tty", ATTRS{idVendor}=="%s", ATTRS{idProduct}=="%s", SYMLINK="ttyBOX%s", MODE="0666", GROUP="root"%s`, source, dox.Vendor, dox.Product, dox.Product, "\n")
 									result := fmt.Sprintf(`KERNEL=="ttyUSB*", KERNELS=="%s", SYMLINK+="ttyBOX%s" MODE="0666", GROUP="root"%s`, dox.Path, dox.Path, "\n")
+
 									_, err2 := file.WriteString(result)
 
 									if err2 != nil {
+										log.Println("Could not write")
+
+									} else {
+										log.Println("Operation successful!")
+									}
+									result2 := fmt.Sprintf(`KERNEL=="ttyACM*", KERNELS=="%s", SYMLINK+="ttyBOX%s" MODE="0666", GROUP="root"%s`, dox.Path, dox.Path, "\n")
+									_, err3 := file.WriteString(result2)
+
+									if err3 != nil {
 										log.Println("Could not write")
 
 									} else {
