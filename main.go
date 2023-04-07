@@ -191,6 +191,15 @@ func main() {
 												log.Println(errr)
 											}
 
+											buf := make([]byte, 128)
+											n, errr := s.Read(buf)
+
+											if errr != nil {
+												log.Fatal(err)
+											}
+
+											log.Printf("%q", buf[:n])
+
 										}
 
 									}
