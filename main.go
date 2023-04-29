@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/google/gousb"
 	"github.com/gorilla/websocket"
 	"github.com/tarm/serial"
+	"github.com/warthog618/gpio"
 )
 
 type Box struct {
@@ -33,15 +35,24 @@ type BodyList struct {
 type BodySwitch struct {
 	Data struct {
 		Path    string
+		Column  int
 		Command string
 	}
 }
+
+type ChanCommand struct {
+	Command string
+	Column  int
+}
+
+var pins [24]*gpio.Pin
 
 func main() {
 	// Initialize a new Context.
 	ctx := gousb.NewContext()
 
 	devices := []Box{}
+	sortPaths := []int{}
 
 	/*cmd := exec.Command("chmod 666 /dev/ttyUSB0")
 	errC := cmd.Run()
@@ -80,6 +91,19 @@ func main() {
 		s.Close()
 	}*/
 
+	err = gpio.Open()
+	if err != nil {
+		panic(err)
+	}
+
+	defer gpio.Close()
+
+	for pinIndex := 0; pinIndex < 24; pinIndex++ {
+		pins[pinIndex] = gpio.NewPin(pinIndex + 2)
+		pins[pinIndex].Output()
+		pins[pinIndex].Low()
+	}
+
 	messageOut := make(chan string)
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
@@ -95,7 +119,7 @@ func main() {
 	}
 	defer ws.Close()
 
-	var serialChannels = make(map[string](chan string))
+	var serialChannels = make(map[string](chan ChanCommand))
 
 	done := make(chan struct{})
 	go func() {
@@ -109,14 +133,24 @@ func main() {
 			log.Printf("recv: %s", message)
 			go func() {
 				var header Header
-				err2 := json.Unmarshal(message, &header)
+				err := json.Unmarshal(message, &header)
 
-				if err2 == nil {
+				if err == nil {
 					switch Type := header.Type; Type {
 					case "list":
 						var list BodyList
-						err3 := json.Unmarshal(message, &list)
-						if err3 == nil {
+						err := json.Unmarshal(message, &list)
+						if err == nil {
+
+							for _, i := range list.Data {
+								rawString := strings.ReplaceAll(i.Path, ".", "")
+								j, err := strconv.Atoi(strings.ReplaceAll(rawString, "-", ""))
+								if err != nil {
+									panic(err)
+								}
+								sortPaths = append(sortPaths, j)
+							}
+							sort.Ints(sortPaths[:])
 
 							doxa := difference(devices, list.Data)
 							log.Println(doxa)
@@ -131,18 +165,18 @@ func main() {
 									//result := fmt.Sprintf(`KERNEL=="%s[0-9]*", SUBSYSTEM=="tty", ATTRS{idVendor}=="%s", ATTRS{idProduct}=="%s", SYMLINK="ttyBOX%s", MODE="0666", GROUP="root"%s`, source, dox.Vendor, dox.Product, dox.Product, "\n")
 									result := fmt.Sprintf(`KERNEL=="ttyUSB*", KERNELS=="%s", SYMLINK+="ttyBOX%s" MODE="0666", GROUP="root"%s`, dox.Path, dox.Path, "\n")
 
-									_, err2 := file.WriteString(result)
+									_, err := file.WriteString(result)
 
-									if err2 != nil {
+									if err != nil {
 										log.Println("Could not write")
 
 									} else {
 										log.Println("Operation successful!")
 									}
 									result2 := fmt.Sprintf(`KERNEL=="ttyACM*", KERNELS=="%s", SYMLINK+="ttyBOX%s" MODE="0666", GROUP="root"%s`, dox.Path, dox.Path, "\n")
-									_, err3 := file.WriteString(result2)
+									_, err = file.WriteString(result2)
 
-									if err3 != nil {
+									if err != nil {
 										log.Println("Could not write")
 
 									} else {
@@ -169,24 +203,27 @@ func main() {
 							}
 
 							for _, box := range devices {
+
 								go func(box Box) {
+
 									log.Println("/dev/ttyBOX" + box.Path)
-									c := &serial.Config{Name: "/dev/ttyBOX" + box.Path, Baud: 115200}
-									s, err := serial.OpenPort(c)
 
-									if err != nil {
-										log.Println(err)
-										close(serialChannels[box.Path])
-									} else {
-										serialChannels[box.Path] = make(chan string, 10)
-										defer close(serialChannels[box.Path])
+									serialChannels[box.Path] = make(chan ChanCommand, 10)
+									defer close(serialChannels[box.Path])
 
-										for {
-											mess := <-serialChannels[box.Path]
-											log.Printf("message receive: %s\n", mess)
+									for {
+										mess := <-serialChannels[box.Path]
+										log.Printf("message receive: %s\n", mess.Command)
 
-											time.Sleep(time.Millisecond * 750)
-											_, errr := s.Write([]byte(mess + "\r\n"))
+										time.Sleep(time.Millisecond * 500)
+										c := &serial.Config{Name: "/dev/ttyBOX" + box.Path, Baud: 115200}
+										s, err := serial.OpenPort(c)
+
+										if err != nil {
+											log.Println(err)
+										} else {
+
+											_, errr := s.Write([]byte(mess.Command + "\r\n"))
 											if errr != nil {
 												log.Println(errr)
 											}
@@ -200,21 +237,29 @@ func main() {
 
 											log.Printf("%q", buf[:n])
 
+											rawString := strings.ReplaceAll(box.Path, ".", "")
+											j, err := strconv.Atoi(strings.ReplaceAll(rawString, "-", ""))
+											if err != nil {
+												panic(err)
+											}
+											pins[sort.IntSlice(sortPaths).Search(j)].High()
+											time.Sleep(time.Millisecond * 200)
+											pins[8*sort.IntSlice(sortPaths).Search(j)+mess.Column+1].Low()
 										}
+										s.Close()
 
 									}
-									defer s.Close()
 
 								}(box)
 							}
 						}
 					case "switch":
 						var swit BodySwitch
-						err3 := json.Unmarshal(message, &swit)
-						if err3 != nil {
-							log.Println(err3)
+						err := json.Unmarshal(message, &swit)
+						if err != nil {
+							log.Println(err)
 						} else {
-							serialChannels[swit.Data.Path] <- swit.Data.Command
+							serialChannels[swit.Data.Path] <- ChanCommand{Command: swit.Data.Command, Column: swit.Data.Column}
 						}
 					}
 				}
