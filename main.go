@@ -242,11 +242,12 @@ func main() {
 											if err != nil {
 												panic(err)
 											}
+											time.Sleep(time.Millisecond * 1000)
 											pinMapIndex := 8*sort.IntSlice(sortPaths).Search(j) + mess.Column - 1
 											pins[pinMapIndex].Output()
 											pins[pinMapIndex].Low()
 											log.Println("pin: ", pinMapIndex, " Low ", mess.Column, " status: ", pins[pinMapIndex].Read())
-											time.Sleep(time.Millisecond * 1000)
+											time.Sleep(time.Millisecond * 100)
 											pins[pinMapIndex].Input()
 											log.Println("pin: ", pinMapIndex, " Input ", mess.Column, " status: ", pins[pinMapIndex].Read())
 										}
