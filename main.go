@@ -45,9 +45,11 @@ type ChanCommand struct {
 	Column  int
 }
 
-var pins [24]*gpio.Pin
+var pins [17]*gpio.Pin
 
 func main() {
+	pinMap := []int{9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27}
+
 	// Initialize a new Context.
 	ctx := gousb.NewContext()
 
@@ -97,11 +99,9 @@ func main() {
 	}
 
 	defer gpio.Close()
-
-	for pinIndex := 0; pinIndex < 24; pinIndex++ {
-		pins[pinIndex] = gpio.NewPin(pinIndex + 2)
-		pins[pinIndex].Output()
-		pins[pinIndex].Low()
+	for i, s := range pinMap {
+		pins[i] = gpio.NewPin(s)
+		pins[i].Input()
 	}
 
 	messageOut := make(chan string)
@@ -242,9 +242,13 @@ func main() {
 											if err != nil {
 												panic(err)
 											}
-											pins[sort.IntSlice(sortPaths).Search(j)].High()
-											time.Sleep(time.Millisecond * 200)
-											pins[8*sort.IntSlice(sortPaths).Search(j)+mess.Column+1].Low()
+											pinMapIndex := 8*sort.IntSlice(sortPaths).Search(j) + mess.Column - 1
+											pins[pinMapIndex].Output()
+											pins[pinMapIndex].Low()
+											log.Println("pin: ", pinMapIndex, " Low ", mess.Column, " status: ", pins[pinMapIndex].Read())
+											time.Sleep(time.Millisecond * 1000)
+											pins[pinMapIndex].Input()
+											log.Println("pin: ", pinMapIndex, " Input ", mess.Column, " status: ", pins[pinMapIndex].Read())
 										}
 										s.Close()
 
