@@ -101,6 +101,7 @@ func main() {
 	defer gpio.Close()
 	for i, s := range pinMap {
 		pins[i] = gpio.NewPin(s)
+		pins[i].PullDown()
 		pins[i].Input()
 	}
 
