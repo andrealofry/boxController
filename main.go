@@ -47,6 +47,8 @@ type ChanCommand struct {
 
 var pins [17]*gpio.Pin
 
+const LOGIC_LEVEL = 1
+
 func main() {
 	pinMap := []int{9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27}
 
@@ -101,8 +103,13 @@ func main() {
 	defer gpio.Close()
 	for i, s := range pinMap {
 		pins[i] = gpio.NewPin(s)
-		pins[i].PullDown()
-		pins[i].Input()
+		if LOGIC_LEVEL == 1 {
+			pins[i].PullDown()
+			pins[i].Input()
+		} else {
+			pins[i].Output()
+			pins[i].Low()
+		}
 	}
 
 	messageOut := make(chan string)
@@ -223,7 +230,26 @@ func main() {
 										if err != nil {
 											log.Println(err)
 										} else {
+											//GPIO PORT GET SETTING
+											rawString := strings.ReplaceAll(box.Path, ".", "")
+											j, err := strconv.Atoi(strings.ReplaceAll(rawString, "-", ""))
+											if err != nil {
+												panic(err)
+											}
+											time.Sleep(time.Millisecond * 1000)
+											pinMapIndex := 8*sort.IntSlice(sortPaths).Search(j) + mess.Column - 1
 
+											//GPIO set pin to no sim
+											if LOGIC_LEVEL == 1 {
+												pins[pinMapIndex].Output()
+												pins[pinMapIndex].Low()
+												log.Println("pin: ", pinMapIndex, " Low ", mess.Column, " status: ", pins[pinMapIndex].Read())
+											} else {
+												pins[pinMapIndex].Output()
+												pins[pinMapIndex].High()
+												log.Println("pin: ", pinMapIndex, " High ", mess.Column, " status: ", pins[pinMapIndex].Read())
+											}
+											//Write switch command on BOX
 											_, errr := s.Write([]byte(mess.Command + "\r\n"))
 											if errr != nil {
 												log.Println(errr)
@@ -238,19 +264,19 @@ func main() {
 
 											log.Printf("%q", buf[:n])
 
-											rawString := strings.ReplaceAll(box.Path, ".", "")
-											j, err := strconv.Atoi(strings.ReplaceAll(rawString, "-", ""))
-											if err != nil {
-												panic(err)
+											//Delay some time for box effectively whitch sim
+											time.Sleep(time.Millisecond * 2000)
+
+											if LOGIC_LEVEL == 1 {
+												pins[pinMapIndex].Input()
+												pins[pinMapIndex].PullDown()
+												log.Println("pin: ", pinMapIndex, " Input(Pull Down) ", mess.Column, " status: ", pins[pinMapIndex].Read())
+											} else {
+												pins[pinMapIndex].Output()
+												pins[pinMapIndex].Low()
+												log.Println("pin: ", pinMapIndex, " Low ", mess.Column, " status: ", pins[pinMapIndex].Read())
 											}
-											time.Sleep(time.Millisecond * 1000)
-											pinMapIndex := 8*sort.IntSlice(sortPaths).Search(j) + mess.Column - 1
-											pins[pinMapIndex].Output()
-											pins[pinMapIndex].Low()
-											log.Println("pin: ", pinMapIndex, " Low ", mess.Column, " status: ", pins[pinMapIndex].Read())
-											time.Sleep(time.Millisecond * 100)
-											pins[pinMapIndex].Input()
-											log.Println("pin: ", pinMapIndex, " Input ", mess.Column, " status: ", pins[pinMapIndex].Read())
+
 										}
 										s.Close()
 
