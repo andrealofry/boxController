@@ -50,7 +50,14 @@ var pins [17]*gpio.Pin
 const LOGIC_LEVEL = 1
 
 func main() {
-	pinMap := []int{9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27}
+	var pinMap [16]int
+
+	if LOGIC_LEVEL == 1 {
+		pinMap = [16]int{9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26}
+	} else {
+		//				 BOX 1						 BOX 2
+		pinMap = [16]int{9, 11, 0, 5, 6, 13, 19, 26, 25, 8, 7, 1, 12, 16, 20, 21}
+	}
 
 	// Initialize a new Context.
 	ctx := gousb.NewContext()
