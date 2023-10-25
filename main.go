@@ -124,7 +124,7 @@ func main() {
 	signal.Notify(interrupt, os.Interrupt)
 
 	rawQuery := "id=" + getMac()
-	u := url.URL{Scheme: "wss", Host: "new.jkssrl.com", Path: "/node/webs", RawQuery: rawQuery}
+	u := url.URL{Scheme: "wss", Host: "console.auge.srl", Path: "/node/webs", RawQuery: rawQuery}
 	log.Printf("connecting to %s", u.String())
 
 	ws, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
